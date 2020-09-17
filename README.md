@@ -24,17 +24,9 @@ To run simulations with the multi-class classification datasets conducted in Sec
 
 - stratified case (OPE from multiple loggers)
 ```
-for data in optdigits pageblock pendigits sat
+for data in pendigits
 do
-    screen python run_sims.py --num_sims 200 --data $data
-done
-```
-
-- i.i.d case (OPE from a single mixture logger)
-```
-for data in optdigits pageblock pendigits sat
-do
-    screen python run_sims.py --num_sims 200 --data $data --is_iid
+    python run_sims.py --num_sims 10 --data $data
 done
 ```
 

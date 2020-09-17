@@ -12,15 +12,15 @@ def train_policies(data_dict: Dict, policy_params: Dict) -> List[np.ndarray]:
         base = policy_params[pol]["base_model"]
         X_tr, y_tr = data_dict[f"X_tr{base}"], data_dict[f"y_tr"]
         clf = LogisticRegression(
-            random_state=0, max_iter=1000, solver="lbfgs", multi_class="multinomial"
+            random_state=0, solver="lbfgs", multi_class="multinomial",
         ).fit(X=X_tr, y=y_tr)
         preds = clf.predict(X=data_dict[f"X_ev{base}"]).astype(int)
         # transform predictions into distribution over actions
         alpha = policy_params[pol]["alpha"]
-        beta = policy_params[pol]["beta"]
         pi = np.zeros((data_dict["n_eval"], data_dict["n_class"]))
-        u = np.random.uniform(-0.5, 0.5)
-        pi[:, :] = (1 - alpha - beta * u) / (data_dict["n_class"] - 1)
-        pi[np.arange(data_dict["n_eval"]), preds] = alpha + beta * u
+        pi[:, :] = (1.0 - alpha) / data_dict["n_class"]
+        pi[np.arange(data_dict["n_eval"]), preds] = (
+            alpha + (1.0 - alpha) / data_dict["n_class"]
+        )
         policy_list.append(pi)
     return policy_list

@@ -1,17 +1,12 @@
-from typing import Optional
+from typing import Dict
 from pathlib import Path
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 
 def load_datasets(
-    data: str,
-    ratio: float,
-    num_eval: Optional[int] = None,
-    test_size: float = 0.7,
-    is_iid: bool = False,
+    data: str, ratio: float, test_size: float = 0.7, is_iid: bool = False,
 ):
     """Load and preprocess raw multiclass classification data."""
     data_path = Path(f"../data/{data}")
@@ -37,21 +32,13 @@ def load_datasets(
         ]
         data_[:, -1] = np.where(data_[:, -1] == 7, 5, data_[:, -1] - 1)
     data_tr, data_ev = train_test_split(data_, test_size=test_size, random_state=12345)
-
-    # subsampling evaluation data
-    if num_eval:
-        ev_idx = np.random.choice(data_ev.shape[0], size=num_eval, replace=False)
-        data_ev = data_ev[ev_idx]
     n_train, n_eval = data_tr.shape[0], data_ev.shape[0]
-    n_dim = np.int((data_tr.shape[1] - 1) / 2)
+    n_dim = np.int(data_tr.shape[1] / 2)
     y_tr, y_ev = data_tr[:, -1].astype(int), data_ev[:, -1].astype(int)
     n_class = np.unique(y_tr).shape[0]
     y_full_ev = np.zeros((n_eval, n_class))
     y_full_ev[np.arange(n_eval), y_ev] = 1
     X_tr, X_ev = data_tr[:, :-1], data_ev[:, :-1]
-    scaler = StandardScaler()
-    X_tr = scaler.fit_transform(X_tr)
-    X_ev = scaler.fit_transform(X_ev)
     X_tr1, X_tr2 = data_tr[:, :n_dim], data_tr[:, n_dim:]
     X_ev1, X_ev2 = data_ev[:, :n_dim], data_ev[:, n_dim:]
 
@@ -84,11 +71,12 @@ def load_datasets(
     )
 
 
-def generate_bandit_feedback(data_dict, pi_b1: np.ndarray, pi_b2: np.ndarray):
+def generate_bandit_feedback(data_dict: Dict, pi_b1: np.ndarray, pi_b2: np.ndarray):
     """Generate logged bandit feedback data."""
     n_eval = data_dict["n_eval"]
     idx1, ratio1 = data_dict["idx1"], data_dict["ratio1"]
-    pi_b = np.r_[pi_b1[idx1, :], pi_b2[~idx1, :]]
+    idx1_expanded = np.expand_dims(idx1, 1)
+    pi_b = pi_b1 * idx1_expanded + pi_b2 * (1 - idx1_expanded)
     pi_b_star = pi_b1 * ratio1 + pi_b2 * (1.0 - ratio1)
     action_set = np.arange(data_dict["n_class"])
     actions = np.zeros(data_dict["n_eval"], dtype=int)

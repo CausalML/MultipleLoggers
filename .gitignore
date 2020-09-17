@@ -130,7 +130,9 @@ dmypy.json
 
 # others
 .DS_Store
+.vscode/
 data/
 log/
+log_save/
 *.ipynb
 note.md
