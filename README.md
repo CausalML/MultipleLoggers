@@ -1,7 +1,8 @@
-## Efficient Evaluation Using Logged Bandit Feedback from Multiple Loggers
+# TBD
 
 ## Overview
-This repository contains the code for replicating the experiments from the paper **"Efficient Evaluation Using Logged Bandit Feedback from Multiple Loggers"**
+This repository contains the code for replicating the experiments from the paper
+**"Efficient Evaluation Using Logged Bandit Feedback from Multiple Loggers (tentative)"**
 
 If you find this code useful in your research then please cite:
 ```
@@ -13,20 +14,20 @@ If you find this code useful in your research then please cite:
 - numpy==1.18.1
 - pandas==0.25.1
 - scikit-learn==0.23.1
-- tensorflow==1.15.2
+- tensorflow==1.15.4
 - pyyaml==5.1
 - seaborn==0.10.1
 - matplotlib==3.2.2
 
 ### Running the code
 
-To run simulations with the multi-class classification datasets conducted in Section 5, run the following commands in the `./src/` directory:
+To run the simulations with the multi-class classification datasets, run the following commands in the `./src/` directory:
 
 - stratified case (OPE from multiple loggers)
 ```
-for data in pendigits
+for data in pendigits optdigits
 do
-    python run_sims.py --num_sims 10 --data $data
+    python run_sims.py --num_sims 2 --data $data
 done
 ```
 

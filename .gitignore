@@ -131,8 +131,7 @@ dmypy.json
 # others
 .DS_Store
 .vscode/
-data/
+pageblock/
 log/
-log_save/
 *.ipynb
 note.md

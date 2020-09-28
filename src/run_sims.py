@@ -18,13 +18,12 @@ from ope import (
     calc_weighted_ipw,
     calc_dr,
     estimate_q_func,
-    estimate_q_func_with_mrdr,
     calc_ground_truth,
 )
 from policy import train_policies
 
 
-def calc_rmse(policy_value_true, policy_value_estimated) -> float:
+def calc_rmse(policy_value_true: float, policy_value_estimated: float) -> float:
     return np.sqrt(
         (((policy_value_true - policy_value_estimated) / policy_value_true) ** 2).mean()
     )
@@ -46,16 +45,16 @@ if __name__ == "__main__":
     num_sims = args.num_sims
     data = args.data
     np.random.seed(12345)
-    ratio_list = [0.25]
+    ratio_list = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 10, 20]
     estimator_names = [
         "ground_truth",
         "IPS",
         "BAL",
         "WEI",
-        "DR-naive",
+        "DR(naive)",
         "DR",
-        "MRDR-naive",
-        "MRDR-stratified",
+        "MRDR(wrong)",
+        "MRDR",
     ]
     log_path = Path("../log") / data
     log_path.mkdir(parents=True, exist_ok=True)
@@ -77,11 +76,13 @@ if __name__ == "__main__":
                 data_dict=data_dict, pi_b1=pi_b1, pi_b2=pi_b2
             )
             # estimate q-function with cross-fitting
-            estimated_q_func = estimate_q_func(bandit_feedback=bandit_feedback)
-            estimated_q_func_with_mrdr_naive = estimate_q_func_with_mrdr(
+            estimated_q_func = estimate_q_func(
+                bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="normal",
+            )
+            estimated_q_func_with_mrdr_wrong = estimate_q_func(
                 bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="naive",
             )
-            estimated_q_func_with_mrdr_stratified = estimate_q_func_with_mrdr(
+            estimated_q_func_with_mrdr = estimate_q_func(
                 bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="stratified",
             )
             # off-policy evaluation
@@ -107,7 +108,7 @@ if __name__ == "__main__":
                 pi_b=bandit_feedback["pi_b"],
                 pi_e=pi_e,
             )
-            ope_results["DR-naive"][sim_id] = calc_dr(
+            ope_results["DR(naive)"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 estimated_q_func=estimated_q_func,
@@ -121,17 +122,17 @@ if __name__ == "__main__":
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
-            ope_results["MRDR-naive"][sim_id] = calc_dr(
+            ope_results["MRDR(wrong)"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
-                estimated_q_func=estimated_q_func_with_mrdr_naive,
+                estimated_q_func=estimated_q_func_with_mrdr_wrong,
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
-            ope_results["MRDR-stratified"][sim_id] = calc_dr(
+            ope_results["MRDR"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
-                estimated_q_func=estimated_q_func_with_mrdr_stratified,
+                estimated_q_func=estimated_q_func_with_mrdr,
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
@@ -150,7 +151,8 @@ if __name__ == "__main__":
     # save results of the evaluation of OPE
     rel_rmse_results_df = pd.DataFrame(rel_rmse_results).drop("ground_truth", 1)
     rel_rmse_results_df.T.round(5).to_csv(log_path / f"rel_rmse.csv")
-    # visualize results (IPS-BAL-WEI-DR)
+
+    # ===== visualize results (DR vs Variants of IPS) =====
     fig, ax = plt.subplots(figsize=(12, 8))
     sns.lineplot(
         hue="event",
@@ -158,19 +160,19 @@ if __name__ == "__main__":
         markers=True,
         markersize=15,
         linewidth=5.0,
-        data=rel_rmse_results_df[["IPS", "BAL", "WEI", "DR"]],
+        data=pd.DataFrame(rel_rmse_results_df)[["IPS", "BAL", "WEI", "DR"]],
     )
     plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=20)
+    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
     plt.ylabel(r"$relative-RMSE(\hat{J})$", fontsize=20)
     plt.yticks(fontsize=15)
-    plt.ylim(0.0, 1.0)
-    plt.xticks(fontsize=15)
+    plt.xticks(fontsize=20)
     plt.xscale("log")
-    # ax.set_xticks(np.arange(0, 4.1))
-    plt.legend(bbox_to_anchor=(1.001, 0.999), loc="upper left", fontsize=20)
-    fig.savefig(log_path / f"rel_rmse.png", bbox_inches="tight", pad_inches=0.05)
-    # visualize results (among DRs)
+    plt.title("DR vs Variants of IPS", size=30)
+    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=25)
+    fig.savefig(log_path / f"dr_vs_ips.png", bbox_inches="tight", pad_inches=0.05)
+
+    # ===== visualize results (DR vs DR (naive)) =====
     fig, ax = plt.subplots(figsize=(12, 8))
     sns.lineplot(
         hue="event",
@@ -178,14 +180,69 @@ if __name__ == "__main__":
         markers=True,
         markersize=15,
         linewidth=5.0,
-        data=rel_rmse_results_df[["DR-naive", "DR", "MRDR-naive", "MRDR-stratified"]],
+        data=pd.DataFrame(rel_rmse_results_df)[["DR", "DR(naive)"]]
+        / pd.DataFrame(rel_rmse_results_df)[["DR(naive)"]].values,
     )
     plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=20)
-    plt.ylabel(r"$relative-RMSE(\hat{J})$", fontsize=20)
+    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
+    plt.ylabel(
+        r"$\frac{relative-RMSE(\hat{J}_{DR})}{relative-RMSE(\hat{J}_{DR-naive})}$",
+        fontsize=25,
+    )
     plt.yticks(fontsize=15)
-    plt.xticks(fontsize=15)
+    plt.xticks(fontsize=20)
     plt.xscale("log")
-    # ax.set_xticks(np.arange(0, 4.1))
-    plt.legend(bbox_to_anchor=(1.001, 0.999), loc="upper left", fontsize=20)
-    fig.savefig(log_path / f"rel_rmse_drs.png", bbox_inches="tight", pad_inches=0.05)
+    plt.title("DR vs DR (naive)", size=30)
+    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=25)
+    fig.savefig(log_path / f"dr_vs_dr-naive.png", bbox_inches="tight", pad_inches=0.05)
+
+    # ===== visualize results (MRDR vs DR) =====
+    fig, ax = plt.subplots(figsize=(12, 8))
+    sns.lineplot(
+        hue="event",
+        style="event",
+        markers=True,
+        markersize=15,
+        linewidth=5.0,
+        data=pd.DataFrame(rel_rmse_results_df)[["MRDR", "DR"]]
+        / pd.DataFrame(rel_rmse_results_df)[["DR"]].values,
+    )
+    plt.rcParams["font.family"] = "sans-serif"
+    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
+    plt.ylabel(
+        r"$\frac{relative-RMSE(\hat{J}_{MRDR})}{relative-RMSE(\hat{J}_{DR})}$",
+        fontsize=25,
+    )
+    plt.yticks(fontsize=15)
+    plt.xticks(fontsize=20)
+    plt.xscale("log")
+    plt.title("MRDR vs DR", size=30)
+    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=20)
+    fig.savefig(log_path / f"dr_vs_mrdr.png", bbox_inches="tight", pad_inches=0.05)
+
+    # ===== visualize results (MRDR vs MRDR(wrong)) =====
+    fig, ax = plt.subplots(figsize=(12, 8))
+    sns.lineplot(
+        hue="event",
+        style="event",
+        markers=True,
+        markersize=15,
+        linewidth=5.0,
+        data=pd.DataFrame(rel_rmse_results_df)[["MRDR", "MRDR(wrong)"]]
+        / pd.DataFrame(rel_rmse_results_df)[["MRDR(wrong)"]].values,
+    )
+    plt.rcParams["font.family"] = "sans-serif"
+    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
+    plt.ylabel(
+        r"$\frac{relative-RMSE(\hat{J}_{MRDR})}{relative-RMSE(\hat{J}_{MRDR-wrong})}$",
+        fontsize=25,
+    )
+    plt.yticks(fontsize=15)
+    plt.xticks(fontsize=20)
+    plt.xscale("log")
+    plt.title("MRDR vs MRDR (wrong)", size=30)
+    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=20)
+    fig.savefig(
+        log_path / f"mrdr_vs_mrdr-wrong.png", bbox_inches="tight", pad_inches=0.05
+    )
+
