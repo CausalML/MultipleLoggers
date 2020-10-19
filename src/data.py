@@ -2,24 +2,21 @@ from typing import Dict
 from pathlib import Path
 
 import numpy as np
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 
 def load_datasets(
-    data: str, ratio: float, test_size: float = 0.7, is_iid: bool = False,
+    data: str, ratio: float, test_size: float = 0.5, random_state: int = 12345
 ):
     """Load and preprocess raw multiclass classification data."""
     data_path = Path(f"../data/{data}")
+    le = LabelEncoder()
     if data == "optdigits":
         data_ = np.r_[
             np.loadtxt(data_path / f"{data}.tra", delimiter=","),
             np.loadtxt(data_path / f"{data}.tes", delimiter=","),
         ]
-    elif data == "pageblock":
-        data_ = np.genfromtxt(
-            data_path / "page-blocks.data", delimiter="", dtype="str"
-        ).astype(float)
-        data_[:, -1] = data_[:, -1] - 1
     elif data == "pendigits":
         data_ = np.r_[
             np.loadtxt(data_path / f"{data}.tra", delimiter=","),
@@ -31,7 +28,16 @@ def load_datasets(
             np.loadtxt(data_path / f"{data}.tst", delimiter=" "),
         ]
         data_[:, -1] = np.where(data_[:, -1] == 7, 5, data_[:, -1] - 1)
-    data_tr, data_ev = train_test_split(data_, test_size=test_size, random_state=12345)
+    elif data == "letter":
+        data_ = np.genfromtxt(
+            data_path / "letter-recognition.data", delimiter=",", dtype="str"
+        )
+        data_ = np.c_[data_[:, 1:], le.fit_transform(data_[:, 0])].astype(float)
+
+    np.random.shuffle(data_)
+    data_tr, data_ev = train_test_split(
+        data_, test_size=test_size, random_state=random_state
+    )
     n_train, n_eval = data_tr.shape[0], data_ev.shape[0]
     n_dim = np.int(data_tr.shape[1] / 2)
     y_tr, y_ev = data_tr[:, -1].astype(int), data_ev[:, -1].astype(int)
@@ -45,11 +51,8 @@ def load_datasets(
     # multiple logger index generation
     ratio1 = ratio / (1 + ratio)
     n_eval1 = np.int(n_eval * ratio1)
-    if is_iid:
-        idx1 = np.random.binomial(1, ratio1, size=n_eval).astype(bool)
-    else:
-        idx1 = np.ones(n_eval, dtype=bool)
-        idx1[n_eval1:] = False
+    idx1 = np.ones(n_eval, dtype=bool)
+    idx1[n_eval1:] = False
 
     return dict(
         n_train=n_train,

@@ -1,8 +1,8 @@
-# TBD
+# Optimal Off-Policy Evaluation from Multiple Logging Policies
 
 ## Overview
 This repository contains the code for replicating the experiments from the paper
-**"Efficient Evaluation Using Logged Bandit Feedback from Multiple Loggers (tentative)"**
+**"Optimal Off-Policy Evaluation from Multiple Logging Policies"**
 
 If you find this code useful in your research then please cite:
 ```
@@ -23,13 +23,12 @@ If you find this code useful in your research then please cite:
 
 To run the simulations with the multi-class classification datasets, run the following commands in the `./src/` directory:
 
-- stratified case (OPE from multiple loggers)
 ```
-for data in pendigits optdigits
+for data in optdigits pendigits sat letter
 do
-    python run_sims.py --num_sims 2 --data $data
+    screen python run_sims.py --num_sims 200 --data $data --is_estimate_pi_b
 done
 ```
 
 Nota that the configurations used in the experiments can be found in `./conf/policy_params.yaml`.
-Once the simulations have finished running, the summarized results can be found in the `../log/{data}` directory for each dataset.
+Once the simulations have finished running, the summarized results can be found in the `../log/{data}` directory for each data.

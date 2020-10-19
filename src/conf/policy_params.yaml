@@ -1,9 +1,3 @@
-evaluation:
-    alpha: 1.0
-    base_model: 1
-behavior1:
-    alpha: 0.9
-    base_model: 1
-behavior2:
-    alpha: 0.1
-    base_model: 2
+evaluation: 1.0
+behavior1: 0.95
+behavior2: 0.05

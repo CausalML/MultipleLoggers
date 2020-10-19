@@ -1,13 +1,12 @@
 import argparse
 import time
 import yaml
+import pickle
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from sklearn.exceptions import ConvergenceWarning
 
 warnings.filterwarnings(action="ignore", category=ConvergenceWarning)
@@ -15,15 +14,16 @@ warnings.filterwarnings(action="ignore", category=ConvergenceWarning)
 from data import load_datasets, generate_bandit_feedback
 from ope import (
     calc_ipw,
-    calc_weighted_ipw,
+    calc_weighted,
     calc_dr,
     estimate_q_func,
+    estimate_pi_b,
     calc_ground_truth,
 )
 from policy import train_policies
 
 
-def calc_rmse(policy_value_true: float, policy_value_estimated: float) -> float:
+def calc_rel_rmse(policy_value_true: float, policy_value_estimated: float) -> float:
     return np.sqrt(
         (((policy_value_true - policy_value_estimated) / policy_value_true) ** 2).mean()
     )
@@ -34,48 +34,65 @@ with open("./conf/policy_params.yaml", "rb") as f:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--num_sims", "-n", type=int, default=200,
-    )
+    parser.add_argument("--num_sims", "-n", type=int, required=True)
+    parser.add_argument("--test_size", "-t", type=float, default=0.7, required=True)
     parser.add_argument("--data", "-d", type=str, required=True)
+    parser.add_argument("--is_estimate_pi_b", "-i", action="store_true")
     args = parser.parse_args()
     print(args)
 
     # configurations
     num_sims = args.num_sims
     data = args.data
+    test_size = args.test_size
+    is_estimate_pi_b = args.is_estimate_pi_b
     np.random.seed(12345)
-    ratio_list = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 10, 20]
+    ratio_list = [0.1, 0.2, 0.5, 1, 2, 4, 10]
     estimator_names = [
         "ground_truth",
-        "IPS",
-        "BAL",
-        "WEI",
-        "DR(naive)",
+        "IS-Avg",
+        "IS",
+        "IS-PW(f)",
+        "DR-Avg",
+        "DR-PW",
         "DR",
-        "MRDR(wrong)",
         "MRDR",
+        "SMRDR",
     ]
-    log_path = Path("../log") / data
+    log_path = (
+        Path("../log") / data / f"test_size={test_size}" / "estimated_pi_b"
+        if is_estimate_pi_b
+        else Path("../log") / data / f"test_size={test_size}" / "true_pi_b"
+    )
     log_path.mkdir(parents=True, exist_ok=True)
+    raw_results_path = log_path / "raw_results"
+    raw_results_path.mkdir(parents=True, exist_ok=True)
 
-    ope_results = {name: np.zeros(num_sims) for name in estimator_names}
     rel_rmse_results = {
         name: {r: np.zeros(num_sims) for r in ratio_list} for name in estimator_names
     }
     for ratio in ratio_list:
-        data_dict = load_datasets(data=data, ratio=ratio, is_iid=False)
         start = time.time()
+        ope_results = {name: np.zeros(num_sims) for name in estimator_names}
         for sim_id in np.arange(num_sims):
+            # load and split data
+            data_dict = load_datasets(
+                data=data, test_size=test_size, ratio=ratio, random_state=sim_id
+            )
             # train eval and two behavior policies
             pi_e, pi_b1, pi_b2 = train_policies(
-                data_dict=data_dict, policy_params=policy_params
+                data_dict=data_dict, policy_params=policy_params, random_state=sim_id,
             )
             # generate bandit feedback
-            bandit_feedback = generate_bandit_feedback(
+            bandit_feedback_ = generate_bandit_feedback(
                 data_dict=data_dict, pi_b1=pi_b1, pi_b2=pi_b2
             )
-            # estimate q-function with cross-fitting
+            # estimate pi_b1, pi_b2, and pi_b_star with 2-fold cross-fitting
+            if is_estimate_pi_b:
+                bandit_feedback = estimate_pi_b(bandit_feedback=bandit_feedback_)
+            else:
+                bandit_feedback = bandit_feedback_
+            # estimate q-function with 2-fold cross-fitting
             estimated_q_func = estimate_q_func(
                 bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="normal",
             )
@@ -89,31 +106,39 @@ if __name__ == "__main__":
             ope_results["ground_truth"][sim_id] = calc_ground_truth(
                 y_true=data_dict["y_ev"], pi=pi_e
             )
-            ope_results["IPS"][sim_id] = calc_ipw(
+            ope_results["IS-Avg"][sim_id] = calc_ipw(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 pi_b=bandit_feedback["pi_b"],
                 pi_e=pi_e,
             )
-            ope_results["BAL"][sim_id] = calc_ipw(
+            ope_results["IS"][sim_id] = calc_ipw(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
-            ope_results["WEI"][sim_id] = calc_weighted_ipw(
+            ope_results["IS-PW(f)"][sim_id] = calc_weighted(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 idx1=bandit_feedback["idx1"],
                 pi_b=bandit_feedback["pi_b"],
                 pi_e=pi_e,
             )
-            ope_results["DR(naive)"][sim_id] = calc_dr(
+            ope_results["DR-Avg"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 estimated_q_func=estimated_q_func,
                 pi_b=bandit_feedback["pi_b"],
                 pi_e=pi_e,
+            )
+            ope_results["DR-PW"][sim_id] = calc_weighted(
+                rewards=bandit_feedback["rewards"],
+                actions=bandit_feedback["actions"],
+                idx1=bandit_feedback["idx1"],
+                pi_b=bandit_feedback["pi_b"],
+                pi_e=pi_e,
+                estimated_q_func=estimated_q_func,
             )
             ope_results["DR"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
@@ -122,14 +147,14 @@ if __name__ == "__main__":
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
-            ope_results["MRDR(wrong)"][sim_id] = calc_dr(
+            ope_results["MRDR"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 estimated_q_func=estimated_q_func_with_mrdr_wrong,
                 pi_b=bandit_feedback["pi_b_star"],
                 pi_e=pi_e,
             )
-            ope_results["MRDR"][sim_id] = calc_dr(
+            ope_results["SMRDR"][sim_id] = calc_dr(
                 rewards=bandit_feedback["rewards"],
                 actions=bandit_feedback["actions"],
                 estimated_q_func=estimated_q_func_with_mrdr,
@@ -140,8 +165,11 @@ if __name__ == "__main__":
                 print(
                     f"ratio={ratio}-{sim_id+1}th: {np.round((time.time() - start) / 60, 2)}min"
                 )
+        # save raw off-policy evaluation results.
+        with open(raw_results_path / f"ratio={ratio}.pkl", mode="wb") as f:
+            pickle.dump(ope_results, f)
         for estimator in estimator_names:
-            rel_rmse_results[estimator][ratio] = calc_rmse(
+            rel_rmse_results[estimator][ratio] = calc_rel_rmse(
                 policy_value_true=ope_results["ground_truth"],
                 policy_value_estimated=ope_results[estimator],
             )
@@ -151,98 +179,3 @@ if __name__ == "__main__":
     # save results of the evaluation of OPE
     rel_rmse_results_df = pd.DataFrame(rel_rmse_results).drop("ground_truth", 1)
     rel_rmse_results_df.T.round(5).to_csv(log_path / f"rel_rmse.csv")
-
-    # ===== visualize results (DR vs Variants of IPS) =====
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.lineplot(
-        hue="event",
-        style="event",
-        markers=True,
-        markersize=15,
-        linewidth=5.0,
-        data=pd.DataFrame(rel_rmse_results_df)[["IPS", "BAL", "WEI", "DR"]],
-    )
-    plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
-    plt.ylabel(r"$relative-RMSE(\hat{J})$", fontsize=20)
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=20)
-    plt.xscale("log")
-    plt.title("DR vs Variants of IPS", size=30)
-    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=25)
-    fig.savefig(log_path / f"dr_vs_ips.png", bbox_inches="tight", pad_inches=0.05)
-
-    # ===== visualize results (DR vs DR (naive)) =====
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.lineplot(
-        hue="event",
-        style="event",
-        markers=True,
-        markersize=15,
-        linewidth=5.0,
-        data=pd.DataFrame(rel_rmse_results_df)[["DR", "DR(naive)"]]
-        / pd.DataFrame(rel_rmse_results_df)[["DR(naive)"]].values,
-    )
-    plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
-    plt.ylabel(
-        r"$\frac{relative-RMSE(\hat{J}_{DR})}{relative-RMSE(\hat{J}_{DR-naive})}$",
-        fontsize=25,
-    )
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=20)
-    plt.xscale("log")
-    plt.title("DR vs DR (naive)", size=30)
-    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=25)
-    fig.savefig(log_path / f"dr_vs_dr-naive.png", bbox_inches="tight", pad_inches=0.05)
-
-    # ===== visualize results (MRDR vs DR) =====
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.lineplot(
-        hue="event",
-        style="event",
-        markers=True,
-        markersize=15,
-        linewidth=5.0,
-        data=pd.DataFrame(rel_rmse_results_df)[["MRDR", "DR"]]
-        / pd.DataFrame(rel_rmse_results_df)[["DR"]].values,
-    )
-    plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
-    plt.ylabel(
-        r"$\frac{relative-RMSE(\hat{J}_{MRDR})}{relative-RMSE(\hat{J}_{DR})}$",
-        fontsize=25,
-    )
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=20)
-    plt.xscale("log")
-    plt.title("MRDR vs DR", size=30)
-    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=20)
-    fig.savefig(log_path / f"dr_vs_mrdr.png", bbox_inches="tight", pad_inches=0.05)
-
-    # ===== visualize results (MRDR vs MRDR(wrong)) =====
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.lineplot(
-        hue="event",
-        style="event",
-        markers=True,
-        markersize=15,
-        linewidth=5.0,
-        data=pd.DataFrame(rel_rmse_results_df)[["MRDR", "MRDR(wrong)"]]
-        / pd.DataFrame(rel_rmse_results_df)[["MRDR(wrong)"]].values,
-    )
-    plt.rcParams["font.family"] = "sans-serif"
-    plt.xlabel(r"stratum size ratio ($r = n_1 / n_2$)", fontsize=25)
-    plt.ylabel(
-        r"$\frac{relative-RMSE(\hat{J}_{MRDR})}{relative-RMSE(\hat{J}_{MRDR-wrong})}$",
-        fontsize=25,
-    )
-    plt.yticks(fontsize=15)
-    plt.xticks(fontsize=20)
-    plt.xscale("log")
-    plt.title("MRDR vs MRDR (wrong)", size=30)
-    plt.legend(bbox_to_anchor=(1.001, 0.9999), loc="upper left", fontsize=20)
-    fig.savefig(
-        log_path / f"mrdr_vs_mrdr-wrong.png", bbox_inches="tight", pad_inches=0.05
-    )
-
