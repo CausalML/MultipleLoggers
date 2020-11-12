@@ -2,7 +2,7 @@
 
 ## Overview
 This repository contains the code for replicating the experiments from the paper
-**"Optimal Off-Policy Evaluation from Multiple Logging Policies"**
+[**"Optimal Off-Policy Evaluation from Multiple Logging Policies"**](https://arxiv.org/abs/2010.11002)
 
 If you find this code useful in your research then please cite:
 ```
