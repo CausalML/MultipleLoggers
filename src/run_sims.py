@@ -81,7 +81,9 @@ if __name__ == "__main__":
             )
             # train eval and two behavior policies
             pi_e, pi_b1, pi_b2 = train_policies(
-                data_dict=data_dict, policy_params=policy_params, random_state=sim_id,
+                data_dict=data_dict,
+                policy_params=policy_params,
+                random_state=sim_id,
             )
             # generate bandit feedback
             bandit_feedback_ = generate_bandit_feedback(
@@ -94,13 +96,19 @@ if __name__ == "__main__":
                 bandit_feedback = bandit_feedback_
             # estimate q-function with 2-fold cross-fitting
             estimated_q_func = estimate_q_func(
-                bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="normal",
+                bandit_feedback=bandit_feedback,
+                pi_e=pi_e,
+                fitting_method="normal",
             )
             estimated_q_func_with_mrdr_wrong = estimate_q_func(
-                bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="naive",
+                bandit_feedback=bandit_feedback,
+                pi_e=pi_e,
+                fitting_method="naive",
             )
             estimated_q_func_with_mrdr = estimate_q_func(
-                bandit_feedback=bandit_feedback, pi_e=pi_e, fitting_method="stratified",
+                bandit_feedback=bandit_feedback,
+                pi_e=pi_e,
+                fitting_method="stratified",
             )
             # off-policy evaluation
             ope_results["ground_truth"][sim_id] = calc_ground_truth(

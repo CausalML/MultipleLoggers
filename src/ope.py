@@ -15,7 +15,10 @@ def calc_ground_truth(y_true: np.ndarray, pi: np.ndarray) -> float:
 
 
 def calc_ipw(
-    rewards: np.ndarray, actions: np.ndarray, pi_b: np.ndarray, pi_e: np.ndarray,
+    rewards: np.ndarray,
+    actions: np.ndarray,
+    pi_b: np.ndarray,
+    pi_e: np.ndarray,
 ) -> float:
     n_data = actions.shape[0]
     iw = pi_e[np.arange(n_data), actions] / pi_b[np.arange(n_data), actions]
@@ -116,7 +119,10 @@ def calc_dr(
 
 
 def estimate_q_func(
-    bandit_feedback, pi_e: np.ndarray, fitting_method: str = "naive", k_fold: int = 2,
+    bandit_feedback,
+    pi_e: np.ndarray,
+    fitting_method: str = "naive",
+    k_fold: int = 2,
 ) -> np.ndarray:
     X = bandit_feedback["X_ev"]
     y = bandit_feedback["rewards"]
@@ -139,7 +145,12 @@ def estimate_q_func(
             fitting_method=fitting_method,
         )
         clf.train(
-            X=X_tr, a=a_tr, y=y_tr, pi_e=pi_e_tr, pi_b_star=pi_b_star_tr, idx1=idx1_tr,
+            X=X_tr,
+            a=a_tr,
+            y=y_tr,
+            pi_e=pi_e_tr,
+            pi_b_star=pi_b_star_tr,
+            idx1=idx1_tr,
         )
         for a_idx in np.arange(bandit_feedback["n_class"]):
             estimated_q_func_for_a = clf.predict(X=X_ev, a_idx=a_idx)[:, a_idx]

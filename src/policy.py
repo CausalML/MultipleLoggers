@@ -13,7 +13,9 @@ def train_policies(
         # make label predictions
         X_tr, y_tr = data_dict[f"X_tr"], data_dict[f"y_tr"]
         clf = LogisticRegression(
-            random_state=random_state, solver="lbfgs", multi_class="multinomial",
+            random_state=random_state,
+            solver="lbfgs",
+            multi_class="multinomial",
         ).fit(X=X_tr, y=y_tr)
         preds = clf.predict(X=data_dict[f"X_ev"]).astype(int)
         # transform predictions into distribution over actions
