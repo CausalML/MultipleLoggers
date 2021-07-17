@@ -2,7 +2,7 @@
 
 ## Overview
 This repository contains the code for replicating the experiments of the paper
-[**"Optimal Off-Policy Evaluation from Multiple Logging Policies" (ICML2021)**](proceedings.mlr.press/v139/kallus21a.html)
+**"Optimal Off-Policy Evaluation from Multiple Logging Policies" (ICML2021)** [[paper](proceedings.mlr.press/v139/kallus21a.html)]
 
 If you find this code useful in your research then please cite:
 ```

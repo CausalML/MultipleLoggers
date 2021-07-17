@@ -8,7 +8,6 @@ from tensorflow.python.framework import ops
 
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.linear_model import LogisticRegression
-from sklearn.calibration import CalibratedClassifierCV
 
 
 def calc_ground_truth(y_true: np.ndarray, pi: np.ndarray) -> float:
