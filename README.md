@@ -2,7 +2,7 @@
 
 ## Overview
 This repository contains the code for replicating the experiments of the paper
-**"Optimal Off-Policy Evaluation from Multiple Logging Policies" (ICML2021)**
+[**"Optimal Off-Policy Evaluation from Multiple Logging Policies" (ICML2021)**](proceedings.mlr.press/v139/kallus21a.html)
 
 If you find this code useful in your research then please cite:
 ```
@@ -32,9 +32,9 @@ If you find this code useful in your research then please cite:
 To run the simulations with the multi-class classification datasets, run the following commands in the `./src/` directory:
 
 ```
-for data in optdigits pendigits sat letter
+for data in optdigits pendigits
 do
-    screen python run_sims.py --num_sims 200 --data $data -i
+    python run_sims.py --num_sims 200 --data $data --is_estimate_pi_b
 done
 ```
 
