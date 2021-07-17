@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import yaml
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ from tensorflow.python.framework import ops
 
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.linear_model import LogisticRegression
+from sklearn.calibration import CalibratedClassifierCV
 
 
 def calc_ground_truth(y_true: np.ndarray, pi: np.ndarray) -> float:
@@ -124,6 +126,10 @@ def estimate_q_func(
     fitting_method: str = "naive",
     k_fold: int = 2,
 ) -> np.ndarray:
+    # hyperparam
+    with open("./conf/q_func_hyperparams.yaml", "rb") as f:
+        q_func_hyperparams = yaml.safe_load(f)
+
     X = bandit_feedback["X_ev"]
     y = bandit_feedback["rewards"]
     pi_b_star = bandit_feedback["pi_b_star"]
@@ -143,6 +149,11 @@ def estimate_q_func(
             num_features=X_tr.shape[1],
             num_classes=bandit_feedback["n_class"],
             fitting_method=fitting_method,
+            eta=q_func_hyperparams["eta"],
+            std=q_func_hyperparams["std"],
+            lam=q_func_hyperparams["lam"],
+            batch_size=q_func_hyperparams["batch_size"],
+            epochs=q_func_hyperparams["epochs"],
         )
         clf.train(
             X=X_tr,
@@ -167,7 +178,7 @@ class QFuncEstimator:
     std: float = 0.01
     lam: float = 0.001
     batch_size: int = 256
-    epochs: int = 20
+    epochs: int = 200
     fitting_method: str = "stratified"
 
     def __post_init__(self) -> None:

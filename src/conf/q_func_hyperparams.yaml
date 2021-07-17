@@ -1,0 +1,5 @@
+eta: 0.01
+std: 0.01
+lam: 0.001
+batch_size: 256
+epochs: 200

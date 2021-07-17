@@ -1,13 +1,15 @@
 from typing import Dict, List
+import yaml
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
 
-def train_policies(
-    data_dict: Dict, policy_params: Dict, random_state: int = 0
-) -> List[np.ndarray]:
+def train_policies(data_dict: Dict, random_state: int = 0) -> List[np.ndarray]:
     """Train evaluation and behavior policies."""
+    with open("./conf/policy_params.yaml", "rb") as f:
+        policy_params = yaml.safe_load(f)
+
     policy_list = list()
     for pol in policy_params.keys():
         # make label predictions

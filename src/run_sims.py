@@ -1,6 +1,5 @@
 import argparse
 import time
-import yaml
 import pickle
 import warnings
 from pathlib import Path
@@ -29,14 +28,11 @@ def calc_rel_rmse(policy_value_true: float, policy_value_estimated: float) -> fl
     )
 
 
-with open("./conf/policy_params.yaml", "rb") as f:
-    policy_params = yaml.safe_load(f)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_sims", "-n", type=int, required=True)
-    parser.add_argument("--test_size", "-t", type=float, default=0.7, required=True)
     parser.add_argument("--data", "-d", type=str, required=True)
+    parser.add_argument("--test_size", "-t", type=float, default=0.7)
     parser.add_argument("--is_estimate_pi_b", "-i", action="store_true")
     args = parser.parse_args()
     print(args)
@@ -82,7 +78,6 @@ if __name__ == "__main__":
             # train eval and two behavior policies
             pi_e, pi_b1, pi_b2 = train_policies(
                 data_dict=data_dict,
-                policy_params=policy_params,
                 random_state=sim_id,
             )
             # generate bandit feedback
